@@ -19,6 +19,22 @@ function assertAdditional(
   return true
 }
 
+/**
+ * Ensures a GraphQL-safe string from various input types. If the value is:
+ *
+ * - An array: returns the first non-empty item as a string
+ * - A string: returns it as-is
+ * - Anything else: returns an empty string
+ */
+export function normalizeToString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const firstNonEmpty = value.find((v) => typeof v === 'string' && v.trim() !== '')
+    return typeof firstNonEmpty === 'string' ? firstNonEmpty : ''
+  }
+  return ''
+}
+
 const algoliaTypeToTypename = {
   bundle: 'BundleProduct',
   simple: 'SimpleProduct',
@@ -151,8 +167,9 @@ export function algoliaHitToMagentoProduct(
   // Some custom attributes are returned as array while they need to be a string. Flatten those arrays
   const flattenedCustomAttributes = {}
   for (const [key, value] of Object.entries(rest)) {
-    if (value !== null && Array.isArray(value) && value?.length > 0) {
-      flattenedCustomAttributes[key] = value.toString()
+    const normalized = normalizeToString(value)
+    if (normalized !== '') {
+      flattenedCustomAttributes[key] = normalized
       delete rest[key]
     }
   }
@@ -163,7 +180,7 @@ export function algoliaHitToMagentoProduct(
     __typename: algoliaTypeToTypename[type_id as keyof typeof algoliaTypeToTypename],
     uid: btoa(objectID),
     id: Number(objectID),
-    sku: Array.isArray(sku) ? sku[0] : `${sku}`,
+    sku: normalizeToString(sku),
     price_range: mapPriceRange(price, storeConfig, customerGroup),
     created_at: created_at ? new Date(created_at).toISOString() : null,
     stock_status: is_stock ? 'IN_STOCK' : 'OUT_OF_STOCK',
@@ -188,7 +205,9 @@ export function algoliaHitToMagentoProduct(
     // price_tiers: [],
     // product_links: [],
     // related_products: null,
-    // short_description: null,
+    // short_description: {
+    //   html: normalizeToString(short_description),
+    // },
     // small_image: null,
     // special_price: null,
     // special_to_date: null,
